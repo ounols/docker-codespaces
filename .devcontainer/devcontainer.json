@@ -4,8 +4,9 @@
     "dockerfile": "Dockerfile"
   },
   "remoteUser": "kali",
+  "capAdd": ["NET_RAW", "NET_ADMIN"],
   "forwardPorts": [],
-  "postCreateCommand": "sudo service tor start && sleep 2 && echo '[TOR] Verifying...' && curl -s --max-time 10 --socks5-hostname 127.0.0.1:9050 https://httpbin.org/ip && cd ~/shannon-uncontained && npm install && echo '✅ Tor + Shannon-Uncontained environment ready!'",
+  "postCreateCommand": "~/init.sh",
   "customizations": {
     "vscode": {
       "settings": {

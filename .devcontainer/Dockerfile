@@ -66,13 +66,15 @@ WORKDIR /home/kali
 RUN git clone https://github.com/Steake/shannon-uncontained.git && \
     cd shannon-uncontained && \
     npm install && \
-    npm install undici socks-proxy-agent
+    npm install undici socks-proxy-agent @anthropic-ai/sdk
 
 # ── Layer 7: Install Tor proxy integration ──
 COPY --chown=kali:kali tor-proxy-bootstrap.mjs /home/kali/shannon-uncontained/tor-proxy-bootstrap.mjs
 COPY --chown=kali:kali tor-tool-runner-patch.mjs /home/kali/shannon-uncontained/tor-tool-runner-patch.mjs
 COPY --chown=kali:kali shannon-tor.sh /home/kali/shannon-tor.sh
-RUN chmod +x /home/kali/shannon-tor.sh
+COPY --chown=kali:kali setup-keys.sh /home/kali/setup-keys.sh
+COPY --chown=kali:kali init.sh /home/kali/init.sh
+RUN chmod +x /home/kali/shannon-tor.sh /home/kali/setup-keys.sh /home/kali/init.sh
 
 # Patch tool-runner.js to inject Tor proxy flags into CLI tools
 RUN cd /home/kali/shannon-uncontained && node tor-tool-runner-patch.mjs

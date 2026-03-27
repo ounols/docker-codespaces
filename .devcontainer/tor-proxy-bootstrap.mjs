@@ -24,6 +24,18 @@ const TOR_HOST = '127.0.0.1';
 const TOR_PORT = 9050;
 const TOR_SOCKS = `socks5h://${TOR_HOST}:${TOR_PORT}`;
 
+// ── User-Agent rotation (avoid Cloudflare bot detection) ──
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0',
+  'Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0',
+];
+function randomUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]; }
+globalThis.__randomUA = randomUA;
+
 // ── 1. Route native fetch() through Tor via undici custom SOCKS5 connector ──
 function socksConnector(options, callback) {
   const port = Number(options.port) || (options.protocol === 'https:' ? 443 : 80);
@@ -49,6 +61,16 @@ function socksConnector(options, callback) {
 const torDispatcher = new Agent({ connect: socksConnector });
 setGlobalDispatcher(torDispatcher);
 
+// ── 1b. Wrap globalThis.fetch to inject User-Agent header ──
+const _origFetch = globalThis.fetch;
+globalThis.fetch = function fetchWithUA(input, init = {}) {
+  init.headers = new Headers(init.headers || {});
+  if (!init.headers.has('User-Agent')) {
+    init.headers.set('User-Agent', randomUA());
+  }
+  return _origFetch.call(this, input, init);
+};
+
 // ── 2. Set env vars for axios, CLI tools, and SDKs ──
 process.env.HTTP_PROXY  = TOR_SOCKS;
 process.env.HTTPS_PROXY = TOR_SOCKS;
@@ -71,17 +93,27 @@ globalThis.__torAgent = torHttpAgent;
 // When args[0] is a URL string and args[1] is the callback (function),
 // we must INSERT an options object, not overwrite the callback.
 function injectAgent(args, agent) {
+  // Inject both Tor agent and User-Agent header
+  function addUA(opts) {
+    if (!opts.headers) opts.headers = {};
+    if (!opts.headers['User-Agent'] && !opts.headers['user-agent']) {
+      opts.headers['User-Agent'] = randomUA();
+    }
+  }
+
   if (typeof args[0] === 'string' || args[0] instanceof URL) {
     if (typeof args[1] === 'function') {
-      // (url, cb) → (url, {agent}, cb)
-      args.splice(1, 0, { agent });
+      // (url, cb) → (url, {agent, headers}, cb)
+      const opts = { agent };
+      addUA(opts);
+      args.splice(1, 0, opts);
     } else if (typeof args[1] === 'object' && args[1] !== null) {
-      // (url, opts, cb) → inject agent into opts
       if (!args[1].agent) args[1].agent = agent;
+      addUA(args[1]);
     }
-  } else if (typeof args[0] === 'object' && args[0] !== null && !args[0].agent) {
-    // (opts, cb)
-    args[0].agent = agent;
+  } else if (typeof args[0] === 'object' && args[0] !== null) {
+    if (!args[0].agent) args[0].agent = agent;
+    addUA(args[0]);
   }
   return args;
 }

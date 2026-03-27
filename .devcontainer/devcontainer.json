@@ -1,0 +1,19 @@
+{
+  "name": "Kali Linux - Shannon Uncontained",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "kali",
+  "forwardPorts": [],
+  "postCreateCommand": "sudo service tor start && sleep 2 && echo '[TOR] Verifying...' && curl -s --max-time 10 --socks5-hostname 127.0.0.1:9050 https://httpbin.org/ip && cd ~/shannon-uncontained && npm install && echo '✅ Tor + Shannon-Uncontained environment ready!'",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  }
+}
